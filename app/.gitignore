@@ -1,0 +1,27 @@
+# Ignore all markdown files
+*.md
+
+# Ignore all PDF documents
+*.pdf
+
+# Ignore all image assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Ignore local database file
+claims_db.json
+
+# Ignore scratch files
+scratch/
+
+# Ignore Python caches
+__pycache__/
+*.pyc
+
+# Ignore temporary storage
+.tempmediaStorage/
+
+# Ignore the extras directory containing documents and flowcharts
+extras/

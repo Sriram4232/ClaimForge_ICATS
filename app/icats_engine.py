@@ -4,13 +4,18 @@ import re
 def parse_date(date_str):
     """
     Parses DD/MM/YYYY date strings into datetime.date objects.
+    Supports parsing with dashes or slashes.
     """
-    return datetime.datetime.strptime(date_str, "%d/%m/%Y").date()
+    cleaned = date_str.replace("-", "/")
+    return datetime.datetime.strptime(cleaned, "%d/%m/%Y").date()
 
 def levenshtein_similarity(s1, s2):
     """
     Computes Levenshtein distance similarity ratio between s1 and s2.
     """
+    s1 = s1.lower().strip()
+    s2 = s2.lower().strip()
+    
     if len(s1) < len(s2):
         s1, s2 = s2, s1
     if len(s2) == 0:
@@ -36,7 +41,7 @@ def clean_and_sort_tokens(name):
     and returns alphabetically sorted tokens.
     """
     n = name.lower().strip()
-    n = re.sub(r'\b(mr|mrs|ms|dr|devi|kumar|sharma|patel|joshi|pillai)\b', '', n)
+    n = re.sub(r'\b(mr|mrs|ms|dr)\b', '', n)
     n = re.sub(r'[^a-z\s]', '', n)
     tokens = sorted([t for t in n.split() if t])
     return "".join(tokens), tokens
@@ -44,7 +49,7 @@ def clean_and_sort_tokens(name):
 def verify_name_match(name1, name2):
     """
     Performs token-sorted and raw Levenshtein distance similarity checks.
-    Handles Swapped tokens (e.g. Ramesh Kumar vs Kumar Ramesh) and initials.
+    Handles Swapped tokens and initials.
     Returns (is_match, similarity_score).
     """
     c1, t1 = clean_and_sort_tokens(name1)
@@ -65,31 +70,8 @@ def verify_name_match(name1, name2):
     sim_raw = levenshtein_similarity(raw1, raw2)
     
     max_sim = max(sim_sorted, sim_raw)
+    # Threshold set at 80% as per standard verification limits
     return max_sim >= 0.80, round(max_sim, 2)
-
-def normalize_documents(documents_list):
-    """
-    Normalizes a list of documents (supports legacy string list and metadata layer).
-    """
-    normalized = []
-    for doc in documents_list:
-        if isinstance(doc, str):
-            normalized.append({
-                "type": doc,
-                "url": f"/static/uploads/{doc.lower()}_file.pdf",
-                "verification_status": "VERIFIED",
-                "source": "MANUAL_UPLOAD",
-                "uploaded_at": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            })
-        elif isinstance(doc, dict):
-            normalized.append({
-                "type": doc.get("type", "UNKNOWN"),
-                "url": doc.get("url", ""),
-                "verification_status": doc.get("verification_status", "PENDING"),
-                "source": doc.get("source", "MANUAL_UPLOAD"),
-                "uploaded_at": doc.get("uploaded_at", "")
-            })
-    return normalized
 
 def evaluate_claim(policy, claim):
     """
@@ -109,10 +91,8 @@ def evaluate_claim(policy, claim):
     investigation = claim.get("investigation", {})
     legal_status = claim.get("legal_status", {})
     
-    # Normalize document metadata layer
-    raw_docs = claim.get("documents", []) or claim.get("submitted_documents", [])
-    normalized_docs = normalize_documents(raw_docs)
-    present_types = {d["type"] for d in normalized_docs if d["verification_status"] == "VERIFIED"}
+    # Track submitted documents
+    submitted_docs = claim.get("submitted_documents", []) or []
     
     rules_results = []
     recommended_actions = []
@@ -223,7 +203,7 @@ def evaluate_claim(policy, claim):
             recommended_actions.append("Obtain Gazetted Officer certificate or 'One and the Same Individual' Notarized Affidavit.")
         elif claimant_name.lower() != name_on_cheque.lower():
             msg = f"Spelling variance resolved via fuzzy name match (score: {r4_score})."
-            recommended_actions.append(f"Generate a pre-filled Name Correction Affidavit to resolve spelling variance ('{claimant_name}' vs '{name_on_cheque}').")
+            recommended_actions.append(f"Generate a Name Correction Affidavit to resolve spelling variance ('{claimant_name}' vs '{name_on_cheque}').")
     else:
         r4_passed = False
         r4_impact = "WARNING"
@@ -248,9 +228,10 @@ def evaluate_claim(policy, claim):
     
     if policy.get("policy_status", "ACTIVE").upper() == "LAPSED" and last_pay_date_str:
         last_pay = parse_date(last_pay_date_str)
-        # Premium due anniversary is approximately 1 year later
+        # Premium due anniversary is 1 year later
         next_due = datetime.date(last_pay.year + 1, last_pay.month, last_pay.day)
         grace_days = (date_of_death - next_due).days
+        # Grace period is typically 30 days in India
         if 0 <= grace_days <= 30:
             grace_applied = True
             
@@ -279,7 +260,8 @@ def evaluate_claim(policy, claim):
     calculated_payout = sum_assured
     
     if is_lapsed_state:
-        if premiums_paid >= 2:
+        # Under Section 113, 3 or more years paid guarantees Reduced Paid-Up.
+        if premiums_paid >= 3:
             payout_type = "REDUCED_PAID_UP"
             formula_str = "(premiums_paid / PPT) * sum_assured"
             calculated_payout = (premiums_paid / ppt) * sum_assured
@@ -291,14 +273,15 @@ def evaluate_claim(policy, claim):
             calculated_payout = 0.0
             r6_passed = False
             r6_impact = "BLOCKER"
-            msg = f"Policy lapsed without acquiring paid-up value (premiums paid for {premiums_paid} < 2 years)."
+            msg = f"Policy lapsed without acquiring paid-up value (premiums paid for {premiums_paid} < 3 years)."
             recommended_actions.append("Advise claimant that claim is rejected due to policy lapse without paid-up value.")
     elif grace_applied:
         payout_type = "GRACE_PERIOD_DISBURSEMENT"
+        # Deduct outstanding premium
         premium_deduction = sum_assured * 0.05
         calculated_payout = sum_assured - premium_deduction
         formula_str = "Sum Assured - Outstanding Premium"
-        msg = "Premium grace period active. Outstanding premium deducted."
+        msg = "Premium grace period active. Outstanding premium deducted (5%)."
         recommended_actions.append("Deduct the outstanding premium from the final sum assured disbursement.")
     else:
         msg = "Policy is active. Eligible for full sum assured disbursement."
@@ -318,6 +301,7 @@ def evaluate_claim(policy, claim):
     # ------------------ RULE_07: SUICIDE CLAUSE EXCLUSION ------------------
     cause_lower = claim["cause_of_death"].lower()
     is_suicide = "suicide" in cause_lower or "hanging" in cause_lower or "self-inflicted" in cause_lower
+    is_accidental = "accident" in cause_lower or "polytrauma" in cause_lower or "crash" in cause_lower or "drowning" in cause_lower
     
     r7_passed = True
     r7_impact = "NONE"
@@ -331,7 +315,7 @@ def evaluate_claim(policy, claim):
             payout_type = "NO_PAYOUT"
             formula_str = "0.0 (Suicide exclusion active)"
             msg = f"Suicide exclusion active: death occurred on day {days_since_inception} (< 365 days of policy)."
-            recommended_actions.append("Reject claim payout. Nominee is eligible for refund of premiums paid.")
+            recommended_actions.append("Reject claim payout as suicide exclusion clause is active. Nominee eligible only for premium refund.")
         else:
             msg = f"Suicide occurred on day {days_since_inception} (> 365 days). Exclusion clause not active."
             
@@ -350,7 +334,10 @@ def evaluate_claim(policy, claim):
     # ------------------ RULE_08: EARLY CLAIM AUDIT (SECTION 45) ------------------
     disease_history = medical_details.get("underlying_disease", "").lower()
     hosp_history = medical_details.get("hospitalization_history", "").lower()
-    has_undisclosed_ckd = any(term in disease_history or term in hosp_history for term in ["ckd", "kidney disease", "renal fail", "dialysis"])
+    icd_code_raw = medical_details.get("icd_code", "").upper().strip()
+    
+    # Check for Chronic Kidney Disease indicators as a key LLD scenario
+    has_undisclosed_ckd = any(term in disease_history or term in hosp_history for term in ["ckd", "kidney disease", "renal fail", "dialysis"]) or icd_code_raw.startswith("N18")
     
     r8_passed = True
     r8_impact = "NONE"
@@ -363,20 +350,28 @@ def evaluate_claim(policy, claim):
             calculated_payout = 0.0
             payout_type = "NO_PAYOUT"
             formula_str = "0.0 (Section 45 material non-disclosure)"
-            msg = "Material medical non-disclosure flagged: CKD history suppresses proposal form details."
-            recommended_actions.append("Retrieve hospital discharge summaries and verify non-disclosure in original proposal form.")
-            recommended_actions.append("Initiate field investigation to obtain medical prescriptions from local pharmacies.")
-        elif disease_history or hosp_history:
-            r8_passed = False
-            r8_impact = "INVESTIGATION"
-            msg = f"Hospitalization history ('{disease_history or hosp_history}') found in early claim. Field audit triggered."
-            recommended_actions.append("Verify treating doctor statement (Form B) against insurer proposal records.")
+            msg = "Section 45 material non-disclosure: Chronic Kidney Disease history suppresses proposal details."
+            recommended_actions.append("Reject claim under Section 45 due to material pre-existing medical non-disclosure.")
         else:
-            if "Medical_Records" not in present_types or not claim_forms.get("Form_C"):
+            disease_clean = disease_history.strip().lower()
+            hosp_clean = hosp_history.strip().lower()
+            has_history = (disease_clean and disease_clean not in ["none", "n/a", "nil", "no", "not applicable"]) or \
+                          (hosp_clean and hosp_clean not in ["none", "n/a", "nil", "no", "not applicable"])
+            if has_history:
                 r8_passed = False
                 r8_impact = "INVESTIGATION"
-                msg = "Early claim requires hospital treatment records and Form C verification."
-                recommended_actions.append("Obtain original hospital records to verify duration of underlying illness.")
+                msg = f"Hospitalization history ('{disease_history or hosp_history}') found in early claim. Field audit triggered."
+                recommended_actions.append("Verify treating doctor statement (Form B) against insurer proposal records.")
+            else:
+                # Early claim checks require hospital treatment certificate and medical records for natural deaths
+                if is_accidental:
+                    r8_passed = True
+                    msg = "Early claim medical audit not required for accidental cause of death."
+                elif "Medical_Records" not in submitted_docs or not claim_forms.get("Form_C"):
+                    r8_passed = False
+                    r8_impact = "INVESTIGATION"
+                    msg = "Early claim requires hospital treatment records (Form C) and Medical Case files."
+                    recommended_actions.append("Obtain original hospital records to verify duration of underlying illness.")
                 
     rules_results.append({
         "rule_id": "RULE_08",
@@ -391,28 +386,28 @@ def evaluate_claim(policy, claim):
     })
     
     # ------------------ RULE_09: ACCIDENTAL DEATH INVESTIGATION ------------------
-    is_accidental = "accident" in cause_lower or "polytrauma" in cause_lower or "crash" in cause_lower or "drowning" in cause_lower
     r9_passed = True
     r9_impact = "NONE"
     msg = "Police investigation reports not required for natural deaths."
     
     if is_accidental:
         missing_acc_docs = []
-        if "FIR" not in present_types:
+        if "FIR" not in submitted_docs:
             missing_acc_docs.append("FIR")
-        if "Post_Mortem_Report" not in present_types:
+        if "Post_Mortem_Report" not in submitted_docs:
             missing_acc_docs.append("Post-Mortem Report")
             
         police_status = investigation.get("police_final_report_status", "").upper()
+        
         if missing_acc_docs:
             r9_passed = False
             r9_impact = "BLOCKER"
             msg = f"Accidental death missing mandatory reports: {', '.join(missing_acc_docs)}."
-            recommended_actions.append("Retrieve certified police logs and autopsy reports.")
+            recommended_actions.append("Retrieve certified police logs and autopsy reports (FIR and PMR).")
         elif police_status != "SUBMITTED":
             r9_passed = False
             r9_impact = "INVESTIGATION"
-            msg = "Awaiting final Police Closure Charge Sheet / Form 54."
+            msg = "Awaiting final Police Inquest Closure Charge Sheet / Form 54."
             recommended_actions.append("Request final closure report from police station to rule out self-inflicted crash exclusions.")
         else:
             msg = "All police accident files and inquest reports successfully verified."
@@ -442,6 +437,8 @@ def evaluate_claim(policy, claim):
             
     if is_early and has_undisclosed_ckd:
         fraud_flags.append("MEDICAL_SUPPRESSION")
+    
+    # Suspicious timing: within 180 days of inception
     if (date_of_death - commencement_date).days <= 180:
         fraud_flags.append("SUSPICIOUS_TIMING")
         
@@ -470,9 +467,6 @@ def evaluate_claim(policy, claim):
         risk_level = "LOW"
         
     # ------------------ DECISION ENGINE ------------------
-    # Priority 1: Aggregate risk overrides (Risk > 70 -> REJECTED)
-    # Priority 2: Fraud flag count (2+ flags -> UNDER_REVIEW)
-    # Priority 3: Blocking rule severities
     blocking_failures = [r for r in rules_results if r["result"] == "FAILED" and r["impact"] == "BLOCKER"]
     investigation_failures = [r for r in rules_results if r["result"] == "FAILED" and r["impact"] == "INVESTIGATION"]
     
@@ -483,9 +477,9 @@ def evaluate_claim(policy, claim):
         final_status = "UNDER_REVIEW"
         decision_reason = f"Dossier routed to Field Investigation due to multiple fraud flags: {', '.join(fraud_flags)}."
     elif blocking_failures:
-        # Check if any blocker is an Identity/Compliance discrepancy
         compliance_blockers = [r for r in blocking_failures if r["category"] in ["COMPLIANCE", "IDENTITY"]]
-        if compliance_blockers:
+        is_missing_docs = any("missing" in r["message"].lower() or "required" in r["message"].lower() for r in blocking_failures)
+        if compliance_blockers or is_missing_docs:
             final_status = "QUERY_RAISED"
             decision_reason = f"Verification discrepancy flagged: {blocking_failures[0]['message']}"
         else:
@@ -516,7 +510,6 @@ def evaluate_claim(policy, claim):
     date_of_intimation_str = claim.get("date_of_intimation")
     if date_of_intimation_str:
         intimation_date = parse_date(date_of_intimation_str)
-        # Assuming processing occurs relative to today or intimation date
         days_elapsed = (datetime.date.today() - intimation_date).days
         if days_elapsed < 0:
             days_elapsed = 15
@@ -552,12 +545,12 @@ def evaluate_claim(policy, claim):
         missing_docs.append("Form C (Hospital Treatment Certificate)")
     if not bank_details.get("account_number") or not bank_details.get("ifsc"):
         missing_docs.append("Cancelled Cheque / Bank Passbook Copy")
-    if is_early and ("Medical_Records" not in present_types or not claim_forms.get("Form_C")):
+    if is_early and ("Medical_Records" not in submitted_docs or not claim_forms.get("Form_C")):
         missing_docs.append("Medical Case Records / Hospital Treatment File")
     if is_accidental:
-        if "FIR" not in present_types:
+        if "FIR" not in submitted_docs:
             missing_docs.append("First Information Report (FIR)")
-        if "Post_Mortem_Report" not in present_types:
+        if "Post_Mortem_Report" not in submitted_docs:
             missing_docs.append("Post-Mortem Report (PMR)")
         if investigation.get("police_final_report_status", "").upper() != "SUBMITTED":
             missing_docs.append("Police Final Charge Sheet / Form 54")
@@ -596,6 +589,5 @@ def evaluate_claim(policy, claim):
             "amount": calculated_payout,
             "type": payout_type,
             "formula_used": formula_str
-        },
-        "documents": normalized_docs
+        }
     }

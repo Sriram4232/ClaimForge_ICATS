@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICATS - Insurance Claim Assistance & Tracking System</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ================= LOGIN SCREEN / OVERLAY ================= -->
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2>ICATS Portal</h2>
+            <p>Insurance Claim Assistance & Tracking System</p>
+            
+            <form id="auth-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-email">Portal Username / Email</label>
+                    <input type="email" id="login-email" required placeholder="e.g. nominee@icats.in">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block"><i class="fa-solid fa-right-to-bracket"></i> Login & Authenticate</button>
+            </form>
+            
+            <div class="demo-credentials">
+                <h4><i class="fa-solid fa-circle-info"></i> Demo Accounts (MongoDB Verified)</h4>
+                <div class="credential-item" onclick="fillCredentials('nominee@icats.in', 'nominee')">
+                    <strong>Claimant (Nominee)</strong>
+                    <span>nominee@icats.in / nominee</span>
+                </div>
+                <div class="credential-item" onclick="fillCredentials('agent@sbi.co.in', 'agent')">
+                    <strong>Bank Intermediary</strong>
+                    <span>agent@sbi.co.in / agent</span>
+                </div>
+                <div class="credential-item" onclick="fillCredentials('assessor@lic.co.in', 'assessor')">
+                    <strong>Insurer Assessor (Underwriter)</strong>
+                    <span>assessor@lic.co.in / assessor</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MAIN APP INTERFACE ================= -->
+    <div id="app-view" class="app-container" style="display: none;">
+        <!-- Navigation Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo"><i class="fa-solid fa-shield-halved"></i></div>
+                <div>
+                    <h1>ICATS</h1>
+                    <span style="font-size:12px; color:var(--text-muted);">Decision Engine</span>
+                </div>
+            </div>
+            
+            <nav>
+                <!-- Claimant Only Tab Links -->
+                <a href="#" class="menu-item claimant-only" onclick="showSection('wizard-section', this)"><i class="fa-solid fa-file-invoice-dollar"></i> New Claim Wizard</a>
+                <a href="#" class="menu-item claimant-only" onclick="showSection('tracker-section', this)"><i class="fa-solid fa-route"></i> Claim Tracker</a>
+                
+                <!-- Bank Employee Only Tab Links -->
+                <a href="#" class="menu-item bank-only" onclick="showSection('branch-section', this)"><i class="fa-solid fa-building-columns"></i> Branch Directory</a>
+                
+                <!-- Insurer Only Tab Links -->
+                <a href="#" class="menu-item insurer-only" onclick="showSection('inbox-section', this)"><i class="fa-solid fa-inbox"></i> Assessment Inbox</a>
+                <a href="#" class="menu-item claimant-only bank-only insurer-only" id="menu-cert" onclick="showSection('certificate-section', this)"><i class="fa-solid fa-stamp"></i> Clearance Certificate</a>
+                
+                <!-- Shared General Menus -->
+                <a href="#" class="menu-item claimant-only bank-only" id="menu-affidavit" onclick="showSection('affidavit-section', this)"><i class="fa-solid fa-file-contract"></i> Name Affidavit</a>
+                <a href="#" class="menu-item" onclick="showSection('autopilot-section', this)"><i class="fa-solid fa-robot"></i> Autopilot Simulator</a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-badge">
+                    <div class="user-avatar"><i class="fa-regular fa-user-circle"></i></div>
+                    <div class="user-info">
+                        <h4 id="user-name">Active User</h4>
+                        <span id="user-role">Role</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-block" onclick="handleLogout()"><i class="fa-solid fa-right-from-bracket text-danger"></i> Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Workspace -->
+        <main class="main-workspace">
+            <header class="workspace-header">
+                <div class="workspace-title">
+                    <h2 id="page-title">Workspace Dashboard</h2>
+                    <p id="page-subtitle">Select a tab from the sidebar to manage death claims</p>
+                </div>
+                <div>
+                    <span id="role-tag" class="status-badge status-submitted">Role Mode</span>
+                </div>
+            </header>
+
+            <!-- ================= SECTION: CLAIMANT WIZARD ================= -->
+            <section id="wizard-section" class="workspace-section">
+                <!-- Stepper -->
+                <div class="stepper">
+                    <div class="step active" onclick="goToStep(1)" id="step-btn-1">
+                        <div class="step-number">1</div>
+                        <span class="step-label">Intake & Policy</span>
+                    </div>
+                    <div class="step" onclick="goToStep(2)" id="step-btn-2">
+                        <div class="step-number">2</div>
+                        <span class="step-label">Checklist Audit</span>
+                    </div>
+                    <div class="step" onclick="goToStep(3)" id="step-btn-3">
+                        <div class="step-number">3</div>
+                        <span class="step-label">KYC Matching</span>
+                    </div>
+                    <div class="step" onclick="goToStep(4)" id="step-btn-4">
+                        <div class="step-number">4</div>
+                        <span class="step-label">Payout & Risk</span>
+                    </div>
+                    <div class="step" onclick="goToStep(5)" id="step-btn-5">
+                        <div class="step-number">5</div>
+                        <span class="step-label">Final Submit</span>
+                    </div>
+                </div>
+
+                <!-- Step 1: Form & File Intake -->
+                <div class="wizard-pane active" id="pane-1">
+                    <div class="glass-card">
+                        <h3><i class="fa-solid fa-file-signature text-primary"></i> Policy Specifications</h3>
+                        <p class="card-desc" style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">Provide policy metrics for validation. Load presets via Autopilot Simulator for automated case test evaluations.</p>
+                        
+                        <div class="grid-2">
+                            <div>
+                                <div class="form-group">
+                                    <label for="policy-no">Policy Number</label>
+                                    <input type="text" id="policy-no" placeholder="e.g. 502918273" value="502918273">
+                                </div>
+                                <div class="form-group">
+                                    <label for="life-assured">Life Assured (Deceased)</label>
+                                    <input type="text" id="life-assured" placeholder="e.g. Harish Kumar" value="Harish Kumar">
+                                </div>
+                                <div class="form-group">
+                                    <label for="nominee-name">Designated Nominee</label>
+                                    <input type="text" id="nominee-name" placeholder="e.g. Sunita Devi" value="Sunita Devi">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sum-assured">Sum Assured (INR)</label>
+                                    <input type="number" id="sum-assured" placeholder="e.g. 2500000" value="2500000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="commencement-date">Commencement Date</label>
+                                    <input type="text" id="commencement-date" placeholder="DD/MM/YYYY" value="15/01/2024">
+                                </div>
+                            </div>
+                            <div>
+                                <div class="form-group">
+                                    <label for="premium-paying-term">Premium Paying Term (Years)</label>
+                                    <input type="number" id="premium-paying-term" placeholder="e.g. 15" value="15">
+                                </div>
+                                <div class="form-group">
+                                    <label for="premiums-paid">Premiums Paid (Years)</label>
+                                    <input type="number" id="premiums-paid" placeholder="e.g. 1" value="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="policy-status">Policy Status</label>
+                                    <select id="policy-status">
+                                        <option value="ACTIVE">ACTIVE</option>
+                                        <option value="LAPSED">LAPSED</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="last-premium-date">Last Premium Paid Date</label>
+                                    <input type="text" id="last-premium-date" placeholder="DD/MM/YYYY" value="15/01/2024">
+                                </div>
+                                <div class="form-group">
+                                    <label for="policy-exclusions">Exclusions Clause</label>
+                                    <input type="text" id="policy-exclusions" placeholder="e.g. Suicide within 12 months" value="Suicide within 12 months">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="glass-card">
+                            <h3><i class="fa-solid fa-user-tag text-primary"></i> Claimant Profile & Settlement Bank</h3>
+                            <div class="form-group">
+                                <label for="claimant-name">Claimant Full Name</label>
+                                <input type="text" id="claimant-name" placeholder="e.g. Sunita Devi" value="Sunita Devi">
+                            </div>
+                            <div class="form-group">
+                                <label for="claimant-relation">Relationship to Deceased</label>
+                                <select id="claimant-relation">
+                                    <option value="Wife">Wife</option>
+                                    <option value="Husband">Husband</option>
+                                    <option value="Son">Son</option>
+                                    <option value="Daughter">Daughter</option>
+                                    <option value="Mother">Mother</option>
+                                    <option value="Father">Father</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="claimant-aadhaar">Aadhaar Card (KYC)</label>
+                                <input type="text" id="claimant-aadhaar" placeholder="e.g. 1234-5678-9012" value="1234-5678-9012">
+                            </div>
+                            <div class="form-grid-row grid-2">
+                                <div class="form-group">
+                                    <label for="bank-acc">Account Number</label>
+                                    <input type="text" id="bank-acc" placeholder="e.g. 1029384756" value="1029384756">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bank-ifsc">IFSC Code</label>
+                                    <input type="text" id="bank-ifsc" placeholder="e.g. SBIN0001029" value="SBIN0001029">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="bank-cheque-name">Name on Bank Cheque</label>
+                                <input type="text" id="bank-cheque-name" placeholder="e.g. Sunita Devi" value="Sunita Devi">
+                            </div>
+                        </div>
+
+                        <div class="glass-card">
+                            <h3><i class="fa-solid fa-hospital-user text-primary"></i> Death Details & Uploads</h3>
+                            <div class="form-group">
+                                <label for="cause-death">Cause of Death</label>
+                                <input type="text" id="cause-death" placeholder="e.g. Chronic Kidney Disease" value="Chronic Kidney Disease (CKD) / Renal Failure">
+                            </div>
+                            <div class="form-grid-row grid-2">
+                                <div class="form-group">
+                                    <label for="date-death">Date of Death</label>
+                                    <input type="text" id="date-death" placeholder="DD/MM/YYYY" value="20/10/2024">
+                                </div>
+                                <div class="form-group">
+                                    <label for="place-death">Place of Death</label>
+                                    <input type="text" id="place-death" placeholder="Hospital / Residence" value="Sir Ganga Ram Hospital, Delhi">
+                                </div>
+                            </div>
+
+                            <!-- File uploads -->
+                            <div class="upload-zone" onclick="triggerFileUpload('Death_Certificate')">
+                                <i class="fa-solid fa-file-pdf upload-icon"></i>
+                                <h4>Death Certificate</h4>
+                                <p style="font-size:11px; color:var(--text-muted);">Click to simulate file upload</p>
+                                <div id="upload-status-Death_Certificate" class="upload-file-info" style="display:none;">
+                                    <i class="fa-solid fa-circle-check"></i> <span id="filename-Death_Certificate">death_certificate.pdf</span>
+                                </div>
+                            </div>
+                            <div class="upload-zone" onclick="triggerFileUpload('Cancelled_Cheque')">
+                                <i class="fa-solid fa-file-invoice upload-icon"></i>
+                                <h4>Cancelled Cheque Copy</h4>
+                                <p style="font-size:11px; color:var(--text-muted);">Click to simulate file upload</p>
+                                <div id="upload-status-Cancelled_Cheque" class="upload-file-info" style="display:none;">
+                                    <i class="fa-solid fa-circle-check"></i> <span id="filename-Cancelled_Cheque">cheque.pdf</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card">
+                        <h3><i class="fa-solid fa-house-medical-flag text-primary"></i> Clinical Profile (Section 45 pre-existing checks)</h3>
+                        <div class="grid-3">
+                            <div class="form-group">
+                                <label for="med-doctor">Treating Doctor</label>
+                                <input type="text" id="med-doctor" placeholder="e.g. Dr. Ashok Seth" value="Dr. Ashok Seth">
+                            </div>
+                            <div class="form-group">
+                                <label for="med-disease">Underlying Disease</label>
+                                <input type="text" id="med-disease" placeholder="e.g. Chronic Kidney Disease" value="Chronic Kidney Disease (CKD)">
+                            </div>
+                            <div class="form-group">
+                                <label for="med-icd">ICD-10 Diagnostic Code</label>
+                                <input type="text" id="med-icd" placeholder="e.g. N18.9" value="N18.9">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="med-history">Hospitalization History Description</label>
+                            <input type="text" id="med-history" placeholder="Prior admission histories" value="Dialysis three times a week since October 2023.">
+                        </div>
+                    </div>
+
+                    <div class="wizard-actions">
+                        <span style="color:var(--text-muted); font-size:12px;">Ensure all variables are populated before evaluating rules.</span>
+                        <button class="btn btn-primary" onclick="goToStep(2)">Evaluate Rules & Next <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Checklist Audit -->
+                <div class="wizard-pane" id="pane-2">
+                    <div class="glass-card">
+                        <h3><i class="fa-solid fa-list-check text-primary"></i> Compliance Checklist Audit</h3>
+                        <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">The checklist is dynamically configured based on standard regulatory requirements and the cause of death.</p>
+                        
+                        <div id="dynamic-checklist-container">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                    <div class="wizard-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(1)"><i class="fa-solid fa-arrow-left"></i> Intake Form</button>
+                        <button class="btn btn-primary" onclick="goToStep(3)">Nominee KYC Matching <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Step 3: KYC Matching -->
+                <div class="wizard-pane" id="pane-3">
+                    <div class="glass-card">
+                        <h3><i class="fa-solid fa-arrows-spin text-primary"></i> Token-Sorted Levenshtein Matching</h3>
+                        <p style="color:var(--text-muted); font-size:13px; margin-bottom:24px;">Matches policy designated nominee name against claimant name and bank cheque payee details.</p>
+                        
+                        <div class="grid-2">
+                            <div class="glass-card" style="margin-bottom:0; background:rgba(0,0,0,0.2);">
+                                <h4>Nominee Matching Matrix</h4>
+                                <p style="font-size:13px; margin-top:8px;">Policy Nominee: <strong id="val-policy-nominee">-</strong></p>
+                                <p style="font-size:13px;">Claimant Name: <strong id="val-claimant-name">-</strong></p>
+                                <p style="font-size:13px; margin-top:8px;">Name Match: <span id="badge-nominee-match" class="status-badge">-</span></p>
+                            </div>
+                            <div class="glass-card" style="margin-bottom:0; background:rgba(0,0,0,0.2);">
+                                <h4>Cheque Holder Matching Matrix</h4>
+                                <p style="font-size:13px; margin-top:8px;">Claimant Name: <strong id="val-claimant-name2">-</strong></p>
+                                <p style="font-size:13px;">Cheque Name: <strong id="val-cheque-name">-</strong></p>
+                                <p style="font-size:13px; margin-top:8px;">Name Match: <span id="badge-cheque-match" class="status-badge">-</span></p>
+                            </div>
+                        </div>
+
+                        <!-- Name Mismatch Warning Panel -->
+                        <div id="name-warning-panel" class="alert-box" style="display:none;">
+                            <h4><i class="fa-solid fa-triangle-exclamation"></i> Nominee Name Spelling Discrepancy Flagged</h4>
+                            <p style="font-size:13px; margin-bottom:12px;">The similarity score between the claimant's name and cheque name is below 90%. To proceed, you must execute a Name Affidavit.</p>
+                            <button class="btn btn-secondary" onclick="viewNameAffidavit()"><i class="fa-solid fa-file-signature"></i> Open Affidavit Stamp</button>
+                        </div>
+                    </div>
+                    <div class="wizard-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(2)"><i class="fa-solid fa-arrow-left"></i> Compliance Checklist</button>
+                        <button class="btn btn-primary" onclick="goToStep(4)">View Payout Computation <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Payout & Risk -->
+                <div class="wizard-pane" id="pane-4">
+                    <div class="glass-card grid-2">
+                        <div>
+                            <h3><i class="fa-solid fa-calculator text-primary"></i> Payout Audit Details</h3>
+                            <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:20px; margin-top:16px; margin-bottom:16px; border:1px solid var(--border-glass);">
+                                <span style="font-size:12px; color:var(--text-muted);">Payout Type</span>
+                                <h4 id="val-payout-type" style="margin-bottom:10px; font-weight:700;">-</h4>
+                                <span style="font-size:12px; color:var(--text-muted);">Calculated Value</span>
+                                <h2 id="val-payout-amount" style="color:var(--color-success); font-weight:800;">INR 0.00</h2>
+                            </div>
+                            <p style="font-size:13px;">Computation Formula Used: <code id="val-payout-formula" style="background:#000; padding:2px 6px; border-radius:4px;">-</code></p>
+                        </div>
+                        <div>
+                            <h3><i class="fa-solid fa-triangle-exclamation text-primary"></i> Fraud Risk Modifiers</h3>
+                            <div class="risk-level-gauge">
+                                <span style="font-size:13px; font-weight:700;">Risk Score: <span id="val-risk-score">0</span>/100</span>
+                                <div class="gauge-bar-wrapper">
+                                    <div id="risk-gauge-fill" class="gauge-fill"></div>
+                                </div>
+                                <span id="badge-risk-level" class="status-badge">-</span>
+                            </div>
+                            <div id="fraud-flags-box" style="margin-top:16px;">
+                                <!-- Flags will populate here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="wizard-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(3)"><i class="fa-solid fa-arrow-left"></i> KYC Matching</button>
+                        <button class="btn btn-primary" onclick="goToStep(5)">Proceed to Submission <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Step 5: Final Submit -->
+                <div class="wizard-pane" id="pane-5">
+                    <div class="glass-card text-center" style="padding:50px 20px;">
+                        <i class="fa-solid fa-circle-check" style="font-size:64px; color:var(--color-success); margin-bottom:20px;"></i>
+                        <h3>Intake Rules Checked & Ready</h3>
+                        <p style="color:var(--text-muted); max-width:500px; margin:8px auto 24px auto; font-size:14px;">The claims engine has audited all submitted variables, calculated the non-forfeiture payout value, and validated the KYC. You can now finalize registration.</p>
+                        <button class="btn btn-primary btn-lg" onclick="simulateClaimSubmission()"><i class="fa-solid fa-paper-plane"></i> Submit to Underwriter Queue</button>
+                    </div>
+                    <div class="wizard-actions">
+                        <button class="btn btn-secondary" onclick="goToStep(4)"><i class="fa-solid fa-arrow-left"></i> Payout Result</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: STATUS TRACKER ================= -->
+            <section id="tracker-section" class="workspace-section">
+                <div class="glass-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                        <div>
+                            <h3>Active Claim Progress</h3>
+                            <p style="font-size:12px; color:var(--text-muted);">Tracking File: <span id="tracker-tracking-id">-</span></p>
+                        </div>
+                        <span id="tracker-status" class="status-badge">-</span>
+                    </div>
+
+                    <!-- Process Line -->
+                    <div class="stepper" style="margin-top:40px; margin-bottom:40px;">
+                        <div class="step" id="track-step-submitted">
+                            <div class="step-number"><i class="fa-solid fa-paper-plane" style="font-size:10px;"></i></div>
+                            <span class="step-label">Submitted</span>
+                        </div>
+                        <div class="step" id="track-step-under_review">
+                            <div class="step-number"><i class="fa-solid fa-magnifying-glass-chart" style="font-size:10px;"></i></div>
+                            <span class="step-label">Under Audit</span>
+                        </div>
+                        <div class="step" id="track-step-query_raised">
+                            <div class="step-number"><i class="fa-solid fa-circle-question" style="font-size:10px;"></i></div>
+                            <span class="step-label">Query Raised</span>
+                        </div>
+                        <div class="step" id="track-step-approved">
+                            <div class="step-number"><i class="fa-solid fa-circle-check" style="font-size:10px;"></i></div>
+                            <span class="step-label">Approved & Disbursed</span>
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="background:rgba(0,0,0,0.2);">
+                        <h4>Claim History Audit Trail</h4>
+                        <div id="tracker-history-timeline" style="font-size:13px; line-height:1.8; margin-top:12px; color:var(--text-muted);">
+                            <!-- Timelines -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: BANK DIRECTORY ================= -->
+            <section id="branch-section" class="workspace-section">
+                <div class="glass-card">
+                    <h3>Branch Claims Directory</h3>
+                    <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">Review and manage claims registered by depositors at State Bank of India branch levels.</p>
+                    
+                    <div class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Policy No</th>
+                                    <th>Claimant</th>
+                                    <th>Cause of Death</th>
+                                    <th>Calculated Payout</th>
+                                    <th>Status</th>
+                                    <th>Aadhaar KYC</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="branch-claims-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Simulated Fingerprint Modal -->
+                <div id="kyc-scan-modal" class="auth-overlay" style="display:none;">
+                    <div class="auth-card" style="max-width:380px;">
+                        <h3>Simulate Aadhaar KYC</h3>
+                        <p>Have the nominee place their thumb on the scanner to verify identity.</p>
+                        
+                        <div class="fingerprint-container" id="biometric-scanner-btn" onclick="startBiometricScan()">
+                            <i class="fa-solid fa-fingerprint fingerprint-icon"></i>
+                            <div class="scanner-laser"></div>
+                        </div>
+                        
+                        <div id="scan-status" style="font-size:13px; font-weight:600; color:var(--text-muted); margin-bottom:16px;">
+                            Awaiting scanner fingerprint contact...
+                        </div>
+                        <button class="btn btn-secondary btn-block" onclick="closeKycModal()">Cancel Scan</button>
+                    </div>
+                </div>
+
+                <!-- Document resubmission modal -->
+                <div id="upload-docs-modal" class="auth-overlay" style="display:none;">
+                    <div class="auth-card" style="max-width:420px; text-align:left;">
+                        <h3>Upload Query Documents</h3>
+                        <p style="margin-bottom:16px; font-size:12px; color:var(--text-muted);">Retrieve police reports or certificates to resolve outstanding underwriting queries.</p>
+                        
+                        <div class="form-group">
+                            <label>Case ID</label>
+                            <input type="text" id="upload-modal-case-id" readonly>
+                        </div>
+                        
+                        <div class="upload-zone" onclick="triggerFileUploadModal('FIR')">
+                            <i class="fa-solid fa-file-shield upload-icon"></i>
+                            <h4>Upload FIR (Accident report)</h4>
+                            <div id="upload-status-modal-FIR" class="upload-file-info" style="display:none;">
+                                <i class="fa-solid fa-circle-check"></i> <span id="filename-modal-FIR">fir_certified.pdf</span>
+                            </div>
+                        </div>
+                        <div class="upload-zone" onclick="triggerFileUploadModal('Post_Mortem_Report')">
+                            <i class="fa-solid fa-file-medical upload-icon"></i>
+                            <h4>Upload PMR (Autopsy report)</h4>
+                            <div id="upload-status-modal-Post_Mortem_Report" class="upload-file-info" style="display:none;">
+                                <i class="fa-solid fa-circle-check"></i> <span id="filename-modal-Post_Mortem_Report">pmr_certified.pdf</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; gap:12px; margin-top:20px;">
+                            <button class="btn btn-secondary" style="flex:1;" onclick="closeUploadModal()">Cancel</button>
+                            <button class="btn btn-primary" style="flex:1;" onclick="submitResubmittedClaim()">Submit to Insurer</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: INSURER INBOX ================= -->
+            <section id="inbox-section" class="workspace-section">
+                <div class="grid-2">
+                    <!-- Left List pane -->
+                    <div class="glass-card" style="max-height:80vh; overflow-y:auto;">
+                        <h3>Audit Triage Queue</h3>
+                        <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">Claims needing assessor reviews and payment disbursements.</p>
+                        
+                        <div id="insurer-claims-list" style="display:flex; flex-direction:column; gap:12px;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Right active workspace pane -->
+                    <div class="glass-card" id="assessor-workspace" style="max-height:80vh; overflow-y:auto;">
+                        <div id="workspace-empty-view" style="text-align:center; padding:100px 20px; color:var(--text-muted);">
+                            <i class="fa-solid fa-file-signature" style="font-size:48px; margin-bottom:16px;"></i>
+                            <p>Select a claim dossier from the queue to start underwriting audit.</p>
+                        </div>
+
+                        <div id="workspace-active-view" style="display:none;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                                <div>
+                                    <h3 id="w-case-title">Dossier Review</h3>
+                                    <span id="w-tracking-id" style="font-size:11px; color:var(--text-muted);">CLM-XXXX</span>
+                                </div>
+                                <span id="w-status-badge" class="status-badge">-</span>
+                            </div>
+
+                            <hr style="border:0; border-top:1px solid var(--border-glass); margin-bottom:16px;">
+
+                            <div class="grid-2" style="margin-bottom:16px;">
+                                <div class="detail-list">
+                                    <p>Life Assured: <strong id="w-life-assured">-</strong></p>
+                                    <p>Policy Commencement: <strong id="w-policy-date">-</strong></p>
+                                    <p>Sum Assured: <strong id="w-sum-assured">-</strong></p>
+                                    <p>Premiums Paid: <strong id="w-premiums-paid">-</strong></p>
+                                </div>
+                                <div class="detail-list">
+                                    <p>Claimant Nominee: <strong id="w-nominee">-</strong></p>
+                                    <p>KYC Aadhaar: <strong id="w-aadhaar">-</strong></p>
+                                    <p>IFSC Bank Code: <strong id="w-ifsc">-</strong></p>
+                                    <p>Account Number: <strong id="w-acc-num">-</strong></p>
+                                </div>
+                            </div>
+
+                            <div class="glass-card" style="background:rgba(0,0,0,0.2); margin-bottom:16px;">
+                                <h4>Medical & Accident Details</h4>
+                                <div class="grid-2" style="margin-top:8px;">
+                                    <div class="detail-list">
+                                        <p>Primary Cause: <strong id="w-cause-death">-</strong></p>
+                                        <p>Treating Doctor: <strong id="w-doctor">-</strong></p>
+                                    </div>
+                                    <div class="detail-list">
+                                        <p>ICD-10 Code: <strong id="w-icd">-</strong></p>
+                                        <p>Chronicity: <strong id="w-history">-</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Rules execution trace output -->
+                            <div class="glass-card" style="background:rgba(0,0,0,0.2); margin-bottom:16px;">
+                                <h4>Explainable Rules Engine Trace Log</h4>
+                                <div class="console-trace mt-2" id="w-console-trace">
+                                    <!-- Rules logged here -->
+                                </div>
+                            </div>
+
+                            <!-- Risk Score -->
+                            <div class="glass-card" style="background:rgba(0,0,0,0.2); margin-bottom:20px;">
+                                <h4>Assessor Risk Level Audit</h4>
+                                <div class="risk-level-gauge">
+                                    <span style="font-size:13px; font-weight:700;">Score: <span id="w-risk-score">0</span></span>
+                                    <div class="gauge-bar-wrapper">
+                                        <div id="w-gauge-fill" class="gauge-fill"></div>
+                                    </div>
+                                    <span id="w-risk-level-badge" class="status-badge">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Action Directives -->
+                            <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:16px; border:1px solid var(--border-glass);">
+                                <h4>Underwriting Decision & Payout Info</h4>
+                                <p style="font-size:13px; margin-top:8px;">Decided Payout: <strong id="w-payout-amount" style="color:var(--color-success);">-</strong></p>
+                                <p style="font-size:13px;">Reasoning: <span id="w-decision-reason" style="color:var(--text-muted);">-</span></p>
+                                
+                                <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;">
+                                    <button class="btn btn-secondary btn-sm" id="btn-dec-audit" onclick="postAssessorDecision('UNDER_REVIEW')"><i class="fa-solid fa-magnifying-glass-chart"></i> Move to Audit</button>
+                                    <button class="btn btn-secondary btn-sm" id="btn-dec-query" onclick="postAssessorDecision('QUERY_RAISED')"><i class="fa-solid fa-circle-question"></i> Raise Query</button>
+                                    <button class="btn btn-danger btn-sm" id="btn-dec-reject" onclick="postAssessorDecision('REJECTED')"><i class="fa-solid fa-circle-xmark"></i> Reject Claim</button>
+                                    <button class="btn btn-primary btn-sm" id="btn-dec-approve" onclick="postAssessorDecision('APPROVED')"><i class="fa-solid fa-circle-check"></i> Approve Claim</button>
+                                </div>
+
+                                <div id="cert-action-pane" style="display:none; margin-top:16px; border-top:1px solid var(--border-glass); padding-top:12px;">
+                                    <button class="btn btn-success btn-block" onclick="openDisbursalCertificate()"><i class="fa-solid fa-stamp"></i> Issue Clearance Disbursal Certificate</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: DISBURSAL CERTIFICATE ================= -->
+            <section id="certificate-section" class="workspace-section">
+                <div class="glass-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <div>
+                            <h3>Disbursal Clearance Certificate</h3>
+                            <p style="font-size:12px; color:var(--text-muted);">Generated clearance seal issued for bank fund settlement.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Clearance</button>
+                    </div>
+
+                    <div class="certificate-paper" id="cert-paper-print">
+                        <div class="cert-header">
+                            <div class="cert-seal"><i class="fa-solid fa-shield-halved"></i></div>
+                            <div class="cert-title">ICATS CLEARANCE SYSTEM</div>
+                        </div>
+                        <div class="cert-body">
+                            <p>This document serves as formal clearance that the life insurance death claim listed below has passed all compliance checklists, statutory non-forfeiture rules under Section 113 of the Insurance Act 1938, and medical suppression checks.</p>
+                        </div>
+                        <div class="cert-meta">
+                            <p><strong>Approved Settled Sum:</strong> INR <span id="c-sum-assured">-</span></p>
+                            <p><strong>Beneficiary Nominee:</strong> <span id="c-nominee">-</span></p>
+                            <p><strong>Policy Number Reference:</strong> <span id="c-policy-no">-</span></p>
+                            <p><strong>Verification Code:</strong> LIC-DISB-2026-SBI-K01</p>
+                        </div>
+                        <div class="cert-body">
+                            <p>The processing bank is hereby advised to clear and disburse funds to the beneficiary's registered settlement bank account. The claim has been marked closed on the insurer registry ledger.</p>
+                        </div>
+                        <div class="cert-footer">
+                            <span style="font-size:11px; color:#555;">Clearance Date: <span id="c-date">-</span></span>
+                            <div style="text-align:center; width:150px; border-top:1px solid #444; padding-top:4px; font-size:12px; font-weight:700;">
+                                Underwriter Sign
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: LEGAL AFFIDAVIT ================= -->
+            <section id="affidavit-section" class="workspace-section">
+                <div class="glass-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <div>
+                            <h3>Name Spelling Discrepancy Affidavit</h3>
+                            <p style="font-size:12px; color:var(--text-muted);">Pre-filled legal template required by Indian insurers when nominee names differ slightly from KYC databases.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Affidavit</button>
+                    </div>
+
+                    <div class="affidavit-paper" id="affidavit-paper-print">
+                        <div class="affidavit-stamp-header">
+                            NON-JUDICIAL LEGAL STAMP PAPER - INDIA
+                        </div>
+                        <h3>AFFIDAVIT DECLARATION</h3>
+                        <p>I, <strong><span id="aff-nominee-full">____________________</span></strong>, residing at Delhi/Kochi/Pune, do hereby solemnly affirm and declare as follows:</p>
+                        <ol>
+                            <li>That my husband/father, Shri <strong><span id="aff-life-assured">____________________</span></strong>, who was holding Life Insurance Policy Number <strong><span id="aff-policy-no">___________</span></strong>, passed away on <strong><span id="aff-date-death">___________</span></strong>.</li>
+                            <li>That in the records of the Insurance Company, my name has been entered as <strong><span id="aff-nominee-policy">____________________</span></strong>.</li>
+                            <li>That in my Bank Account (Account Number: <strong><span id="aff-bank-account">__________</span></strong>) and Aadhaar card, my name is recorded as <strong><span id="aff-nominee-bank">____________________</span></strong>.</li>
+                            <li>That <strong><span id="aff-nominee-policy">____________________</span></strong> and <strong><span id="aff-nominee-bank">____________________</span></strong> refer to the one and the same individual, which is myself.</li>
+                            <li>That I make this solemn affirmation conscientiously believing the same to be true and correct, and to submit to the Insurance Company for settlement of the death claim.</li>
+                        </ol>
+                        <div class="affidavit-signatures">
+                            <div>
+                                <p>_______________________</p>
+                                <strong>DEPONENT</strong>
+                            </div>
+                            <div style="text-align:right;">
+                                <p>Verified before me,</p>
+                                <strong>NOTARY PUBLIC / GAZETTED OFFICER</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= SECTION: AUTOPILOT SIMULATOR ================= -->
+            <section id="autopilot-section" class="workspace-section">
+                <div class="glass-card">
+                    <h3>Automated Multi-Agent Autopilot Simulator</h3>
+                    <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">Run a simulation of three microservices (Claimant Agent, Bank Agent, and Insurer Agent) collaborating to resolve claims without manual interaction.</p>
+                    
+                    <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center;">
+                        <span style="font-size:13px;">Select Autopilot Preset:</span>
+                        <select id="sim-preset" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-glass); border-radius:6px; padding:6px 12px; color:var(--text-main); font-family:var(--font-body); font-size:13px;">
+                            <option value="CASE-002">Case 2: Accidental Death (Auto PMR/FIR Fetching)</option>
+                            <option value="CASE-003">Case 3: Spelling Mismatch (Auto Affidavit generation & KYC verification)</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="runAutopilot()"><i class="fa-solid fa-play"></i> Launch Simulation</button>
+                    </div>
+
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-dot" style="background:#ef4444;"></div>
+                            <div class="terminal-dot" style="background:#f59e0b;"></div>
+                            <div class="terminal-dot" style="background:#10b981;"></div>
+                            <span style="margin-left:10px;">Autopilot Logs Console</span>
+                        </div>
+                        <div class="terminal-body" id="autopilot-terminal">
+                            [System] Console initialized. Awaiting Autopilot simulation trigger...
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Main Client-Side controller script -->
+    <script src="app.js"></script>
+</body>
+</html>

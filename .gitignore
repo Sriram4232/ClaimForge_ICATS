@@ -1,27 +1,13 @@
-# Ignore all markdown files
-*.md
+# Ignore VS Code configuration
+.vscode/
 
-# Ignore all PDF documents
-*.pdf
+# Ignore local secret environment files
+.env
 
-# Ignore all image assets
-*.png
-*.jpg
-*.jpeg
-*.gif
+# Ignore design documents and PDFs at the root level
+/*.md
+/*.pdf
+MD files/
 
-# Ignore local database file
-claims_db.json
-
-# Ignore scratch files
-scratch/
-
-# Ignore Python caches
-__pycache__/
-*.pyc
-
-# Ignore temporary storage
-.tempmediaStorage/
-
-# Ignore the extras directory containing documents and flowcharts
-extras/
+# Ignore mock upload directory
+mock_uploads/
