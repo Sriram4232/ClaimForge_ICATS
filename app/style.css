@@ -578,6 +578,33 @@ h1, h2, h3, h4, h5, h6 {
     100% { top: 15px; }
 }
 
+.fingerprint-container.scan-success {
+    border-color: var(--color-success) !important;
+    background: rgba(16, 185, 129, 0.1) !important;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.fingerprint-container.scan-success .fingerprint-icon {
+    color: var(--color-success) !important;
+}
+
+.fingerprint-container.scan-failed {
+    border-color: var(--color-danger) !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    animation: shake-element 0.4s ease-in-out;
+}
+
+.fingerprint-container.scan-failed .fingerprint-icon {
+    color: var(--color-danger) !important;
+}
+
+@keyframes shake-element {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+}
+
 /* ================= UNDERWRITER DECISION WORKSPACE ================= */
 .detail-list p {
     font-size: 13px;

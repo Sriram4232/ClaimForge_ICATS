@@ -634,34 +634,63 @@ function startBiometricScan() {
     const statusText = document.getElementById("scan-status");
     
     scanner.classList.add("scanning");
+    scanner.classList.remove("scan-success", "scan-failed");
     statusText.innerText = "Scanning fingerprint. Comparing Aadhaar biometric database...";
     
     setTimeout(async () => {
-        scanner.classList.remove("scanning");
-        statusText.innerText = "Biometric verify successful! Aadhaar KYC matching is 100%.";
-        
-        // Push verification details to database
         try {
-            // Update nominee verified to true, transition status to UNDER_REVIEW
-            const res = await fetch("/api/claims/decision", {
+            // 1. Call the backend verification API
+            const verifyRes = await fetch("/api/claims/verify-aadhaar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    case_id: activeUploadCaseId,
-                    status: "UNDER_REVIEW",
-                    comment: "Nominee biometric verification complete. Aadhaar KYC linked successfully.",
-                    by: "bank_agent"
-                })
+                body: JSON.stringify({ case_id: activeUploadCaseId })
             });
             
-            if (res.ok) {
-                alert("Nominee Aadhaar KYC Verification Complete! Claims forwarded to underwriters.");
-                closeKycModal();
-                await loadClaims();
+            const verifyData = await verifyRes.json();
+            
+            if (!verifyRes.ok || !verifyData.success) {
+                scanner.classList.remove("scanning");
+                scanner.classList.add("scan-failed");
+                statusText.innerHTML = `<span style="color:var(--color-danger); font-weight:bold;">Scan Failed: ${verifyData.message || "Aadhaar verification failed."}</span>`;
+                setTimeout(() => {
+                    scanner.classList.remove("scan-failed");
+                }, 3000);
+                return;
             }
+            
+            // 2. If successful, update the UI and transition status
+            scanner.classList.remove("scanning");
+            scanner.classList.add("scan-success");
+            statusText.innerHTML = `<span style="color:var(--color-success); font-weight:bold;">${verifyData.message}</span>`;
+            
+            setTimeout(async () => {
+                scanner.classList.remove("scan-success");
+                
+                // Push verification decision to transition status to UNDER_REVIEW
+                const res = await fetch("/api/claims/decision", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        case_id: activeUploadCaseId,
+                        status: "UNDER_REVIEW",
+                        comment: "Nominee biometric verification complete. Aadhaar KYC linked successfully.",
+                        by: "bank_agent"
+                    })
+                });
+                
+                if (res.ok) {
+                    alert("Nominee Aadhaar KYC Verification Complete! Claims forwarded to underwriters.");
+                    closeKycModal();
+                    await loadClaims();
+                } else {
+                    alert("Failed to transition claim status.");
+                }
+            }, 1500);
+            
         } catch (err) {
-            console.error("Biometric decision error:", err);
-            alert("Failed to submit verification status.");
+            console.error("Biometric verification error:", err);
+            scanner.classList.remove("scanning");
+            statusText.innerText = "Error: Failed to connect to verification server.";
         }
     }, 2500);
 }

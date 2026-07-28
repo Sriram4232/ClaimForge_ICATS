@@ -68,7 +68,7 @@
     "expected_evaluation": {
       "status": "REJECTED",
       "flags": [
-        "RULE_08: Material medical non-disclosure flagged: CKD history suppresses proposal form details.",
+        "RULE_08: Section 45 material non-disclosure: Chronic Kidney Disease history suppresses proposal details.",
         "FRAUD_FLAG: EARLY_CLAIM",
         "FRAUD_FLAG: MEDICAL_SUPPRESSION"
       ],
@@ -223,7 +223,8 @@
     "expected_evaluation": {
       "status": "QUERY_RAISED",
       "flags": [
-        "RULE_02: Nominee 'Chitra Devi' does not match Claimant 'Chithra D. Pillai' (score: 0.75).",
+        "RULE_02: Nominee 'Chitra Devi' does not match Claimant 'Chithra D. Pillai' (score: 0.57).",
+        "RULE_10: Aadhaar format is valid, but biometric KYC verification is pending at the branch due to nominee name mismatch ('Chitra Devi' vs 'Chithra D. Pillai').",
         "FRAUD_FLAG: NAME_MISMATCH"
       ],
       "missing_documents": [

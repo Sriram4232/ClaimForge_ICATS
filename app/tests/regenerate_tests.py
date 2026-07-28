@@ -10,16 +10,8 @@ from icats_engine import evaluate_claim
 
 def regenerate_real_cases():
     # We will define the 5 core cases matching the new schema
-    from server import load_db
-    # Temporarily bypass MongoDB to get the clean mock_initial list
     import server
-    server.MONGO_AVAILABLE = False
-    
-    # If claims_db.json exists, we can delete it temporarily to get clean mock_initial,
-    # or just read the mock_initial variable directly via reflection if needed.
-    # Actually, server.py has mock_initial defined in load_db. We can just load it.
-    # Let's inspect server.py's load_db and extract the mock cases.
-    raw_cases = server.load_db()
+    raw_cases = server.MOCK_CLAIMS
     
     real_cases = []
     for case in raw_cases:
