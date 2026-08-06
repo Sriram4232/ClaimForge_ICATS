@@ -7,9 +7,11 @@ from fastapi.testclient import TestClient
 # Mock environment before imports to prevent file uploads or standard port conflicts
 os.environ["Testing"] = "True"
 
-# Add app parent directory to import path
+# Add app and its parent directory to import path
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(app_dir)
+sys.path.append(os.path.dirname(app_dir))
 
 from icats_engine import evaluate_claim, verify_name_match, parse_date
 from server import app, MOCK_USERS, get_all_claims, save_claims
@@ -159,8 +161,13 @@ class TestIcatsAPI(unittest.TestCase):
         self.assertEqual(res.status_code, 401)
 
     def test_claims_decision_and_state_history(self):
+        # Authenticate first
+        login_res = self.client.post("/api/auth/login", json={"email": "assessor@lic.co.in", "password": "assessor"})
+        token = login_res.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
         # Query list to get an active case ID
-        res = self.client.get("/api/claims?role=insurer")
+        res = self.client.get("/api/claims", headers=headers)
         self.assertEqual(res.status_code, 200)
         claims = res.json()
         self.assertGreater(len(claims), 0)
@@ -184,12 +191,12 @@ class TestIcatsAPI(unittest.TestCase):
             "comment": "Audit review started.",
             "by": "assessor"
         }
-        res = self.client.post("/api/claims/decision", json=decision_payload)
+        res = self.client.post("/api/claims/decision", json=decision_payload, headers=headers)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "UNDER_REVIEW")
         
         # Check that state history is updated
-        res = self.client.get("/api/claims?role=insurer")
+        res = self.client.get("/api/claims", headers=headers)
         updated_claim = next((c for c in res.json() if c["id"] == case_id), None)
         self.assertEqual(updated_claim["status"], "UNDER_REVIEW")
         self.assertGreater(len(updated_claim["state_history"]), 0)
@@ -203,6 +210,11 @@ class TestIcatsAPI(unittest.TestCase):
         self.assertTrue(any("Autopilot resolved" in log or "Claim APPROVED" in log for log in logs))
 
     def test_aadhaar_api_scenarios(self):
+        # Authenticate first as bank employee
+        login_res = self.client.post("/api/auth/login", json={"email": "agent@sbi.co.in", "password": "agent"})
+        token = login_res.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
         # Save original claims db to restore later
         original_claims = get_all_claims()
         try:
@@ -220,56 +232,56 @@ class TestIcatsAPI(unittest.TestCase):
 
             # 1. Success whitelisted
             set_aadhaar("1234-5678-9012")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertTrue(res.json()["success"])
             self.assertIn("Biometric verify successful", res.json()["message"])
 
             # 2. Invalid format (too short)
             set_aadhaar("123-456-789")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "INVALID_CHECKSUM")
 
             # 3. Invalid checksum (Verhoeff fail)
             set_aadhaar("9876-5432-1098")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "INVALID_CHECKSUM")
 
             # 4. Not registered Aadhaar
             set_aadhaar("9876-5432-1096")  # 9876-5432-1096 has a valid Verhoeff checksum but isn't in DB
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "NOT_FOUND")
 
             # 5. Biometric fingerprint mismatch
             set_aadhaar("2000-0000-0009")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "BIOMETRIC_MISMATCH")
 
             # 6. Inactive Aadhaar card
             set_aadhaar("3000-0000-0001")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "INACTIVE_STATUS")
 
             # 7. Aadhaar name mismatch (Registered name 'John Doe' vs Sunita Devi)
             set_aadhaar("4000-0000-0005")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "NAME_MISMATCH")
 
             # 8. Device communication timeout
             set_aadhaar("5000-0000-0006")
-            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id})
+            res = self.client.post("/api/claims/verify-aadhaar", json={"case_id": case_id}, headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertFalse(res.json()["success"])
             self.assertEqual(res.json()["error_code"], "DEVICE_TIMEOUT")

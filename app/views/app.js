@@ -6,8 +6,35 @@ let activeWizardStep = 1;
 let uploadedDocs = {};
 let activeUploadCaseId = null;
 
+// JWT helper to wrap standard fetch requests
+async function customFetch(url, options = {}) {
+    const token = localStorage.getItem("icats_token");
+    const headers = options.headers || {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+    options.headers = headers;
+    return fetch(url, options);
+}
+
 // ================= APP INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", () => {
+    // Fetch and display configuration details (app version & tools)
+    fetch("/api/config")
+        .then(res => res.json())
+        .then(config => {
+            const versionSubheader = document.getElementById("app-subheader");
+            if (versionSubheader) {
+                versionSubheader.innerText = `Decision Engine v${config.app_version}`;
+            }
+            const versionFooter = document.getElementById("app-version-footer");
+            if (versionFooter) {
+                versionFooter.innerText = `ICATS v${config.app_version}`;
+                versionFooter.title = `Backend: ${config.tools.Backend}\nFrontend: ${config.tools.Frontend}\nDatabase: ${config.tools.Database}\nEngine: ${config.tools.Engine}\nStyling: ${config.tools.Styling}`;
+            }
+        })
+        .catch(err => console.error("Error loading configuration details:", err));
+
     // Check if user is already logged in
     const cached = localStorage.getItem("icats_user");
     if (cached) {
@@ -44,8 +71,10 @@ async function handleLogin(e) {
             return;
         }
         
-        loggedInUser = await response.json();
-        localStorage.setItem("icats_user", JSON.stringify(loggedInUser));
+        const loginData = await response.json();
+        loggedInUser = loginData;
+        localStorage.setItem("icats_user", JSON.stringify(loginData));
+        localStorage.setItem("icats_token", loginData.token);
         setupSession();
         
     } catch (err) {
@@ -57,10 +86,18 @@ async function handleLogin(e) {
 function handleLogout() {
     loggedInUser = null;
     localStorage.removeItem("icats_user");
+    localStorage.removeItem("icats_token");
     
     // Reset view
     document.getElementById("auth-overlay").style.display = "flex";
     document.getElementById("app-view").style.display = "none";
+    // Hide background video when logged out
+    const bg = document.getElementById("bg-video");
+    if (bg) {
+        try { bg.pause(); } catch(e) {}
+        bg.style.display = "none";
+        const s = document.getElementById("bg-video-src"); if (s) s.src = "";
+    }
     
     // Clear credentials form
     fillCredentials("nominee@icats.in", "nominee");
@@ -83,10 +120,35 @@ function setupSession() {
     // Configure role-based layout visibility
     configureRoleUI();
     
+    // Load role-specific background video
+    try {
+        loadBackgroundVideo(loggedInUser.role);
+    } catch (e) {
+        console.warn("Background video load skipped:", e);
+    }
+    
     // Load initial claims data
     loadClaims();
 }
 
+// Load and display background video for the current role
+function loadBackgroundVideo(role) {
+    const videoEl = document.getElementById("bg-video");
+    const srcEl = document.getElementById("bg-video-src");
+    if (!videoEl || !srcEl) return;
+
+    // Point the source to the backend endpoint which serves the correct file
+    srcEl.src = `/api/bg-video/${encodeURIComponent(role)}`;
+    videoEl.style.display = "block";
+    // Reload the video element so the new source takes effect
+    try {
+        videoEl.load();
+        // autoplay may be blocked by some browsers; attempt to play but ignore failures
+        videoEl.play().catch(()=>{});
+    } catch (err) {
+        console.warn("Failed to play background video:", err);
+    }
+}
 function configureRoleUI() {
     // Hide all role specific sections
     const claimantOnly = document.querySelectorAll(".claimant-only");
@@ -175,7 +237,7 @@ function showSection(sectionId, menuItemElement) {
 // ================= DATABASE LOADS =================
 async function loadClaims() {
     try {
-        const res = await fetch(`/api/claims?role=${loggedInUser.role}`);
+        const res = await customFetch("/api/claims");
         if (res.ok) {
             claimsList = await res.json();
             
@@ -220,7 +282,7 @@ function goToStep(stepNum) {
 async function triggerIntakeEvaluation() {
     const payload = getWizardPayload();
     try {
-        const res = await fetch("/api/claims/evaluate", {
+        const res = await customFetch("/api/claims/evaluate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -336,7 +398,7 @@ function renderDynamicChecklist(report) {
 async function runFuzzyNameDetails() {
     const payload = getWizardPayload();
     try {
-        const res = await fetch("/api/claims/evaluate", {
+        const res = await customFetch("/api/claims/evaluate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -381,7 +443,7 @@ async function runFuzzyNameDetails() {
 async function runPayoutAndRiskPanel() {
     const payload = getWizardPayload();
     try {
-        const res = await fetch("/api/claims/evaluate", {
+        const res = await customFetch("/api/claims/evaluate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -446,7 +508,7 @@ function triggerFileUpload(docType) {
         fd.append("file", file);
         
         try {
-            const res = await fetch("/api/claims/upload", {
+            const res = await customFetch("/api/claims/upload", {
                 method: "POST",
                 body: fd
             });
@@ -471,7 +533,7 @@ function triggerFileUpload(docType) {
 async function simulateClaimSubmission() {
     const payload = getWizardPayload();
     try {
-        const res = await fetch("/api/claims/submit", {
+        const res = await customFetch("/api/claims/submit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -640,7 +702,7 @@ function startBiometricScan() {
     setTimeout(async () => {
         try {
             // 1. Call the backend verification API
-            const verifyRes = await fetch("/api/claims/verify-aadhaar", {
+            const verifyRes = await customFetch("/api/claims/verify-aadhaar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ case_id: activeUploadCaseId })
@@ -667,7 +729,7 @@ function startBiometricScan() {
                 scanner.classList.remove("scan-success");
                 
                 // Push verification decision to transition status to UNDER_REVIEW
-                const res = await fetch("/api/claims/decision", {
+                const res = await customFetch("/api/claims/decision", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -720,7 +782,7 @@ function triggerFileUploadModal(docType) {
         fd.append("file", file);
         
         try {
-            const res = await fetch("/api/claims/upload", {
+            const res = await customFetch("/api/claims/upload", {
                 method: "POST",
                 body: fd
             });
@@ -740,7 +802,7 @@ function triggerFileUploadModal(docType) {
 
 async function submitResubmittedClaim() {
     try {
-        const res = await fetch("/api/claims/decision", {
+        const res = await customFetch("/api/claims/decision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -884,7 +946,7 @@ async function postAssessorDecision(status) {
     if (comment === null) return; // cancel click
     
     try {
-        const res = await fetch("/api/claims/decision", {
+        const res = await customFetch("/api/claims/decision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -990,7 +1052,7 @@ async function runAutopilot() {
     terminal.innerHTML = "[System] Autopilot simulator launched. Querying database APIs...";
     
     try {
-        const res = await fetch(`/api/agents/simulate?case_id=${caseId}`, { method: "POST" });
+        const res = await customFetch(`/api/agents/simulate?case_id=${caseId}`, { method: "POST" });
         if (res.ok) {
             const data = await res.json();
             
@@ -1031,5 +1093,17 @@ async function runAutopilot() {
     } catch (err) {
         console.error("Simulation failed:", err);
         terminal.innerHTML = '<span style="color:var(--color-danger);">[System Error] Autopilot connection broke. Try checking MongoDB connection logs.</span>';
+    }
+}
+
+// Collapsible Sidebar Toggler
+function toggleSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    sidebar.classList.toggle("collapsed");
+    const btn = document.getElementById("toggle-sidebar");
+    if (sidebar.classList.contains("collapsed")) {
+        btn.title = "Expand Sidebar";
+    } else {
+        btn.title = "Collapse Sidebar";
     }
 }

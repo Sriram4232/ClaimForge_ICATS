@@ -11,9 +11,18 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.0.3">
 </head>
 <body>
+
+    <!-- ================= BACKGROUND VISUAL PATTERNS ================= -->
+    <div class="fixed-bg-aurora"></div>
+    <div class="fixed-bg-grid"></div>
+
+    <!-- ================= DYNAMIC BACKGROUND VIDEO ================= -->
+    <video autoplay loop muted playsinline id="bg-video" style="display: none;">
+        <source id="bg-video-src" src="" type="video/mp4">
+    </video>
 
     <!-- ================= LOGIN SCREEN / OVERLAY ================= -->
     <div id="auth-overlay" class="auth-overlay">
@@ -58,29 +67,30 @@
     <div id="app-view" class="app-container" style="display: none;">
         <!-- Navigation Sidebar -->
         <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-logo"><i class="fa-solid fa-shield-halved"></i></div>
-                <div>
-                    <h1>ICATS</h1>
-                    <span style="font-size:12px; color:var(--text-muted);">Decision Engine</span>
-                </div>
+            <div class="sidebar-header" style="display: flex; align-items: center; width: 100%;">
+                <button id="toggle-sidebar" onclick="toggleSidebar()" class="sidebar-logo-btn" title="Toggle Sidebar" style="background: transparent; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%;">
+                    <div class="sidebar-logo"><i class="fa-solid fa-shield-halved"></i></div>
+                    <div class="sidebar-title-wrapper">
+                        <h1 style="margin: 0; line-height: 1; font-size: 22px; color: var(--text-main); font-family: var(--font-heading); font-weight: 800;">ICATS</h1>
+                        <span id="app-subheader" style="font-size:10px; color:var(--text-muted); display: block; margin-top: 2px; font-family: var(--font-body);">Decision Engine</span>
+                    </div>
+                </button>
             </div>
             
             <nav>
                 <!-- Claimant Only Tab Links -->
-                <a href="#" class="menu-item claimant-only" onclick="showSection('wizard-section', this)"><i class="fa-solid fa-file-invoice-dollar"></i> New Claim Wizard</a>
-                <a href="#" class="menu-item claimant-only" onclick="showSection('tracker-section', this)"><i class="fa-solid fa-route"></i> Claim Tracker</a>
+                <a href="#" class="menu-item claimant-only" onclick="showSection('wizard-section', this)"><i class="fa-solid fa-file-invoice-dollar"></i> <span>New Claim Wizard</span></a>
+                <a href="#" class="menu-item claimant-only" onclick="showSection('tracker-section', this)"><i class="fa-solid fa-route"></i> <span>Claim Tracker</span></a>
                 
                 <!-- Bank Employee Only Tab Links -->
-                <a href="#" class="menu-item bank-only" onclick="showSection('branch-section', this)"><i class="fa-solid fa-building-columns"></i> Branch Directory</a>
+                <a href="#" class="menu-item bank-only" onclick="showSection('branch-section', this)"><i class="fa-solid fa-building-columns"></i> <span>Branch Directory</span></a>
                 
                 <!-- Insurer Only Tab Links -->
-                <a href="#" class="menu-item insurer-only" onclick="showSection('inbox-section', this)"><i class="fa-solid fa-inbox"></i> Assessment Inbox</a>
-                <a href="#" class="menu-item claimant-only bank-only insurer-only" id="menu-cert" onclick="showSection('certificate-section', this)"><i class="fa-solid fa-stamp"></i> Clearance Certificate</a>
+                <a href="#" class="menu-item insurer-only" onclick="showSection('inbox-section', this)"><i class="fa-solid fa-inbox"></i> <span>Assessment Inbox</span></a>
+                <a href="#" class="menu-item claimant-only bank-only insurer-only" id="menu-cert" onclick="showSection('certificate-section', this)"><i class="fa-solid fa-stamp"></i> <span>Clearance Certificate</span></a>
                 
                 <!-- Shared General Menus -->
-                <a href="#" class="menu-item claimant-only bank-only" id="menu-affidavit" onclick="showSection('affidavit-section', this)"><i class="fa-solid fa-file-contract"></i> Name Affidavit</a>
-                <a href="#" class="menu-item" onclick="showSection('autopilot-section', this)"><i class="fa-solid fa-robot"></i> Autopilot Simulator</a>
+                <a href="#" class="menu-item claimant-only bank-only" id="menu-affidavit" onclick="showSection('affidavit-section', this)"><i class="fa-solid fa-file-contract"></i> <span>Name Affidavit</span></a>
             </nav>
             
             <div class="sidebar-footer">
@@ -91,7 +101,10 @@
                         <span id="user-role">Role</span>
                     </div>
                 </div>
-                <button class="btn btn-secondary btn-block" onclick="handleLogout()"><i class="fa-solid fa-right-from-bracket text-danger"></i> Logout</button>
+                <button class="btn btn-secondary btn-block" onclick="handleLogout()"><i class="fa-solid fa-right-from-bracket text-danger"></i> <span>Logout</span></button>
+                <div style="font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 12px; font-family: var(--font-mono); opacity: 0.7;" id="app-version-footer">
+                    ICATS v1.0.4
+                </div>
             </div>
         </aside>
 
@@ -102,7 +115,10 @@
                     <h2 id="page-title">Workspace Dashboard</h2>
                     <p id="page-subtitle">Select a tab from the sidebar to manage death claims</p>
                 </div>
-                <div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="showSection('autopilot-section', null)" style="padding: 10px 16px; border-radius: 10px; font-size: 12px; font-weight: 700; height: fit-content; display: inline-flex; align-items: center; gap: 6px;" title="Launch Autopilot Simulator">
+                        <i class="fa-solid fa-robot" style="color: var(--color-primary); font-size: 13px;"></i> Autopilot Simulator
+                    </button>
                     <span id="role-tag" class="status-badge status-submitted">Role Mode</span>
                 </div>
             </header>
@@ -352,14 +368,14 @@
                                 <span style="font-size:12px; color:var(--text-muted);">Payout Type</span>
                                 <h4 id="val-payout-type" style="margin-bottom:10px; font-weight:700;">-</h4>
                                 <span style="font-size:12px; color:var(--text-muted);">Calculated Value</span>
-                                <h2 id="val-payout-amount" style="color:var(--color-success); font-weight:800;">INR 0.00</h2>
+                                <h2 id="val-payout-amount" class="data-glow" style="color:var(--color-success); font-weight:800;">INR 0.00</h2>
                             </div>
                             <p style="font-size:13px;">Computation Formula Used: <code id="val-payout-formula" style="background:#000; padding:2px 6px; border-radius:4px;">-</code></p>
                         </div>
                         <div>
                             <h3><i class="fa-solid fa-triangle-exclamation text-primary"></i> Fraud Risk Modifiers</h3>
                             <div class="risk-level-gauge">
-                                <span style="font-size:13px; font-weight:700;">Risk Score: <span id="val-risk-score">0</span>/100</span>
+                                <span style="font-size:13px; font-weight:700;">Risk Score: <span id="val-risk-score" class="data-glow">0</span>/100</span>
                                 <div class="gauge-bar-wrapper">
                                     <div id="risk-gauge-fill" class="gauge-fill"></div>
                                 </div>
@@ -703,9 +719,11 @@
 
                     <div class="terminal-window">
                         <div class="terminal-header">
-                            <div class="terminal-dot" style="background:#ef4444;"></div>
-                            <div class="terminal-dot" style="background:#f59e0b;"></div>
-                            <div class="terminal-dot" style="background:#10b981;"></div>
+                            <div class="terminal-dots">
+                                <div class="terminal-dot red"></div>
+                                <div class="terminal-dot yellow"></div>
+                                <div class="terminal-dot green"></div>
+                            </div>
                             <span style="margin-left:10px;">Autopilot Logs Console</span>
                         </div>
                         <div class="terminal-body" id="autopilot-terminal">
@@ -718,6 +736,6 @@
     </div>
 
     <!-- Main Client-Side controller script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=1.0.3"></script>
 </body>
 </html>
