@@ -6,6 +6,7 @@
 
 # Ignore design documents and PDFs at the root level
 /*.md
+!/README.md
 /*.pdf
 MD files/
 
