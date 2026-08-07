@@ -86,9 +86,11 @@ export default function App() {
 
     // Video source checker
     const getBgVideoHtml = () => {
+        const apiBaseUrl = import.meta.env.VITE_API_URL || "";
+        const videoUrl = bgVideoSrc.startsWith("http") ? bgVideoSrc : `${apiBaseUrl}${bgVideoSrc}`;
         return (
-            <video key={bgVideoSrc} autoPlay loop muted playsInline id="bg-video">
-                <source src={bgVideoSrc} type="video/mp4" />
+            <video key={videoUrl} autoPlay loop muted playsInline id="bg-video">
+                <source src={videoUrl} type="video/mp4" />
             </video>
         );
     };
