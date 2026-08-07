@@ -1,20 +1,14 @@
-import json
-import os
 from typing import List, Dict, Any, Optional
-from app.core.database import MONGO_AVAILABLE, users_col, JSON_DB_PATH
+from app.core.database import mongo_template
 
 def get_all_users() -> List[Dict[str, Any]]:
-    if MONGO_AVAILABLE:
-        return list(users_col.find({}, {"_id": 0}))
-    else:
-        if not os.path.exists(JSON_DB_PATH):
-            return []
-        with open(JSON_DB_PATH, "r") as f:
-            return json.load(f).get("users", [])
+    """
+    Retrieves all users from the user directory collection using MongoTemplate.
+    """
+    return mongo_template.find("users")
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-    if MONGO_AVAILABLE:
-        return users_col.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}}, {"_id": 0})
-    else:
-        users = get_all_users()
-        return next((u for u in users if u["email"].lower() == email.lower()), None)
+    """
+    Retrieves a user by their unique email address using MongoTemplate regex query.
+    """
+    return mongo_template.find_one("users", {"email": {"$regex": f"^{email}$", "$options": "i"}})

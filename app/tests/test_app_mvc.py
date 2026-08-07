@@ -203,5 +203,81 @@ class TestIcatsMvcArchitecture(unittest.TestCase):
         res = evaluate_claim(self.policy, self.claim)
         self.assertEqual(res["payout"]["amount"], 0.0)
 
+    # ================= 5. PASSWORD SECURITY TESTS =================
+    def test_password_security_hashing(self):
+        from app.utils.security import hash_password, verify_password
+        pwd = "securepassword123"
+        hashed = hash_password(pwd)
+        self.assertNotEqual(pwd, hashed)
+        self.assertTrue(verify_password(hashed, pwd))
+        self.assertFalse(verify_password(hashed, "wrongpwd"))
+
+    # ================= 6. MONGO TEMPLATE TESTS =================
+    def test_mongo_template_crud_operations(self):
+        from app.core.database import mongo_template
+        # Create
+        test_doc = {"id": "TEST-099", "status": "DRAFT", "detail": "MongoTemplate test"}
+        mongo_template.save("claims", {"id": "TEST-099"}, test_doc)
+        
+        # Read
+        retrieved = mongo_template.find_one("claims", {"id": "TEST-099"})
+        self.assertIsNotNone(retrieved)
+        self.assertEqual(retrieved["detail"], "MongoTemplate test")
+        
+        # Count
+        count = mongo_template.count("claims", {"id": "TEST-099"})
+        self.assertEqual(count, 1)
+
+        # Delete
+        mongo_template.delete_many("claims", {"id": "TEST-099"})
+        deleted = mongo_template.find_one("claims", {"id": "TEST-099"})
+        self.assertIsNone(deleted)
+
+    # ================= 7. NEGATIVE AADHAAR KYC CONDITIONS =================
+    def test_aadhaar_kyc_mismatch_negative(self):
+        # 1234-5678-0009 is hardcoded as biometric mismatch in our repository mock-to-db logic
+        profile = get_aadhaar_profile("1234-5678-0009")
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["biometric_status"], "MISMATCH")
+        
+        # 2000-0000-0009 is seeded directly in the db as biometric mismatch
+        profile_seeded = get_aadhaar_profile("2000-0000-0009")
+        self.assertIsNotNone(profile_seeded)
+        self.assertEqual(profile_seeded["biometric_status"], "MISMATCH")
+
+    def test_aadhaar_kyc_inactive_negative(self):
+        profile = get_aadhaar_profile("1234-5678-0001")
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["status"], "INACTIVE")
+
+    def test_aadhaar_kyc_name_mismatch_negative(self):
+        profile = get_aadhaar_profile("1234-5678-0005")
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["name"], "John Doe")
+
+    def test_aadhaar_kyc_timeout_negative(self):
+        profile = get_aadhaar_profile("1234-5678-0006")
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["biometric_status"], "TIMEOUT")
+
+    # ================= 8. NEGATIVE LIFE CYCLE TRANSITIONS =================
+    def test_invalid_claim_state_transition_negative(self):
+        login_res = self.client.post("/api/auth/login", json={
+            "email": "assessor@lic.co.in",
+            "password": "assessor"
+        })
+        token = login_res.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Transition from DRAFT directly to APPROVED is forbidden (SUBMITTED -> UNDER_REVIEW -> APPROVED is valid)
+        # Attempt to transition CASE-002 from QUERY_RAISED to APPROVED (forbidden, next states are RESUBMITTED)
+        res = self.client.post("/api/claims/decision", json={
+            "case_id": "CASE-002",
+            "status": "APPROVED",
+            "comment": "Illegal approval direct bypass",
+            "by": "assessor"
+        }, headers=headers)
+        self.assertEqual(res.status_code, 400)
+
 if __name__ == "__main__":
     unittest.main()

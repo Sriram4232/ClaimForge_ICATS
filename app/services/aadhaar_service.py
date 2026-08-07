@@ -22,19 +22,11 @@ def verify_aadhaar_kyc_service(case_id: str) -> dict:
     # 2. Check UIDAI database collection
     profile = get_aadhaar_profile(aadhaar_num)
     if not profile:
-        # Fallback check for test client sequential numbers starting with 1234-5678-
-        if aadhaar_num.startswith("1234-5678-"):
-            profile = {
-                "name": claimant.get("name", ""),
-                "biometric_status": "MATCH",
-                "status": "ACTIVE"
-            }
-        else:
-            return {
-                "success": False,
-                "error_code": "NOT_FOUND",
-                "message": f"Aadhaar number '{aadhaar_num}' is not registered in the UIDAI database."
-            }
+        return {
+            "success": False,
+            "error_code": "NOT_FOUND",
+            "message": f"Aadhaar number '{aadhaar_num}' is not registered in the UIDAI database."
+        }
         
     # 3. Check status
     if profile.get("status") != "ACTIVE":

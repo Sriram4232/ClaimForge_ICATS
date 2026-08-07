@@ -2,6 +2,8 @@ import os
 import json
 import gridfs
 from pymongo import MongoClient
+from app.core.mongo_template import MongoTemplate
+from app.utils.security import hash_password
 
 # Setup environment loading
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # points to app/
@@ -44,6 +46,13 @@ try:
 except Exception as e:
     MONGO_AVAILABLE = False
     print(f"[WARNING] MongoDB connection failed ({e}). Falling back to local JSON database.")
+
+# Initialize the MongoTemplate wrapper
+mongo_template = MongoTemplate(
+    db_client=mongo_client if MONGO_AVAILABLE else None,
+    db_name=MONGO_DB_NAME,
+    fallback_json_path=JSON_DB_PATH
+)
 
 # Define mock data
 MOCK_USERS = [
@@ -432,43 +441,46 @@ MOCK_AADHAAR_DB = {
 
 # Seed database logic
 def seed_database():
+    # Hash passwords in mock users for secure storage
+    hashed_users = []
+    for u in MOCK_USERS:
+        hashed_user = u.copy()
+        hashed_user["password"] = hash_password(u["password"])
+        hashed_users.append(hashed_user)
+
     if MONGO_AVAILABLE:
         try:
-            # Seed users
-            if users_col.count_documents({}) == 0:
-                users_col.insert_many(MOCK_USERS)
+            # Seed users using MongoTemplate
+            if mongo_template.count("users") == 0:
+                mongo_template.insert_many("users", hashed_users)
                 print("[INFO] Seeded user directory to MongoDB.")
-            # Seed claims
-            if claims_col.count_documents({}) == 0:
-                claims_col.insert_many(MOCK_CLAIMS)
+            # Seed claims using MongoTemplate
+            if mongo_template.count("claims") == 0:
+                mongo_template.insert_many("claims", MOCK_CLAIMS)
                 print("[INFO] Seeded claims database to MongoDB.")
-            # Seed aadhaar DB
-            if aadhaar_col.count_documents({}) == 0:
+            # Seed aadhaar DB using MongoTemplate
+            if mongo_template.count("aadhaar") == 0:
                 seeded_aadhaar = []
                 for num, val in MOCK_AADHAAR_DB.items():
                     item = val.copy()
                     item["aadhaar"] = num
                     seeded_aadhaar.append(item)
-                aadhaar_col.insert_many(seeded_aadhaar)
+                mongo_template.insert_many("aadhaar", seeded_aadhaar)
                 print("[INFO] Seeded Aadhaar profiles directory to MongoDB.")
         except Exception as e:
             print(f"[ERROR] Database seeding failed: {e}")
     else:
-        # JSON fallback
+        # JSON fallback using MongoTemplate interface to keep fallback files synchronized
         if not os.path.exists(JSON_DB_PATH):
             seeded_aadhaar = []
             for num, val in MOCK_AADHAAR_DB.items():
                 item = val.copy()
                 item["aadhaar"] = num
                 seeded_aadhaar.append(item)
-            data = {
-                "users": MOCK_USERS,
-                "claims": MOCK_CLAIMS,
-                "aadhaar": seeded_aadhaar
-            }
-            with open(JSON_DB_PATH, "w") as f:
-                json.dump(data, f, indent=2)
-            print("[INFO] Seeded local JSON database.")
+            mongo_template.insert_many("users", hashed_users)
+            mongo_template.insert_many("claims", MOCK_CLAIMS)
+            mongo_template.insert_many("aadhaar", seeded_aadhaar)
+            print("[INFO] Seeded local JSON database using MongoTemplate.")
 
 # Seed on import
 seed_database()
